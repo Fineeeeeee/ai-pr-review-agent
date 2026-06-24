@@ -1,0 +1,5 @@
+diff --git a/styles.css b/styles.css
+--- a/styles.css
++++ b/styles.css
+@@ -1 +1,2 @@
++.button { color: blue; }

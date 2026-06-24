@@ -1,0 +1,5 @@
+diff --git a/rules.py b/rules.py
+--- a/rules.py
++++ b/rules.py
+@@ -1 +1,2 @@
++result = eval(user_input)

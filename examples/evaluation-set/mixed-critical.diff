@@ -1,0 +1,7 @@
+diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1,4 @@
++password = "demo-password-value"
++eval(user_input)
++subprocess.run(command, shell=True)

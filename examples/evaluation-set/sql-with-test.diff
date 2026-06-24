@@ -1,0 +1,11 @@
+diff --git a/repo.py b/repo.py
+--- a/repo.py
++++ b/repo.py
+@@ -1 +1,2 @@
++db.execute(f"DELETE FROM users WHERE id = {user_id}")
+diff --git a/tests/test_repo.py b/tests/test_repo.py
+--- a/tests/test_repo.py
++++ b/tests/test_repo.py
+@@ -1 +1,2 @@
++def test_repo():
++    assert True

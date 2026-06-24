@@ -1,0 +1,5 @@
+diff --git a/config.yml b/config.yml
+--- a/config.yml
++++ b/config.yml
+@@ -1 +1,2 @@
++enabled: true

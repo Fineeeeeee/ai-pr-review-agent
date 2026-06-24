@@ -1,0 +1,11 @@
+diff --git a/tasks.py b/tasks.py
+--- a/tasks.py
++++ b/tasks.py
+@@ -1 +1,2 @@
++os.system(user_command)
+diff --git a/tests/test_tasks.py b/tests/test_tasks.py
+--- a/tests/test_tasks.py
++++ b/tests/test_tasks.py
+@@ -1 +1,2 @@
++def test_tasks():
++    assert True

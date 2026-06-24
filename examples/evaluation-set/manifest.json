@@ -1,0 +1,22 @@
+[
+  {"id": "secret-api-key", "file": "secret-api-key.diff", "expected_rules": ["secret_literal", "missing_tests"]},
+  {"id": "sql-f-string", "file": "sql-f-string.diff", "expected_rules": ["sql_interpolation", "missing_tests"]},
+  {"id": "unsafe-eval", "file": "unsafe-eval.diff", "expected_rules": ["unsafe_eval", "missing_tests"]},
+  {"id": "shell-true", "file": "shell-true.diff", "expected_rules": ["shell_execution", "missing_tests"]},
+  {"id": "broad-exception", "file": "broad-exception.diff", "expected_rules": ["broad_exception", "missing_tests"]},
+  {"id": "secret-with-test", "file": "secret-with-test.diff", "expected_rules": ["secret_literal"]},
+  {"id": "sql-with-test", "file": "sql-with-test.diff", "expected_rules": ["sql_interpolation"]},
+  {"id": "eval-with-test", "file": "eval-with-test.diff", "expected_rules": ["unsafe_eval"]},
+  {"id": "shell-with-test", "file": "shell-with-test.diff", "expected_rules": ["shell_execution"]},
+  {"id": "mixed-critical", "file": "mixed-critical.diff", "expected_rules": ["secret_literal", "unsafe_eval", "shell_execution", "missing_tests"]},
+  {"id": "docs-only", "file": "docs-only.diff", "expected_rules": []},
+  {"id": "json-config", "file": "json-config.diff", "expected_rules": []},
+  {"id": "yaml-config", "file": "yaml-config.diff", "expected_rules": []},
+  {"id": "test-only", "file": "test-only.diff", "expected_rules": []},
+  {"id": "safe-function-with-test", "file": "safe-function-with-test.diff", "expected_rules": []},
+  {"id": "safe-service-no-test", "file": "safe-service-no-test.diff", "expected_rules": ["missing_tests"]},
+  {"id": "readme-and-code", "file": "readme-and-code.diff", "expected_rules": ["missing_tests"]},
+  {"id": "toml-config", "file": "toml-config.diff", "expected_rules": []},
+  {"id": "css-only", "file": "css-only.diff", "expected_rules": []},
+  {"id": "password-literal", "file": "password-literal.diff", "expected_rules": ["secret_literal", "missing_tests"]}
+]
