@@ -1,0 +1,6 @@
+diff --git a/service.ts b/service.ts
+--- a/service.ts
++++ b/service.ts
+@@ -1,2 +1,4 @@
++const query = "select * from users where id = " + userId;
++connection.execute(query);

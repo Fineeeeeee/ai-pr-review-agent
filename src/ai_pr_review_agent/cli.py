@@ -9,6 +9,14 @@ from pathlib import Path
 from .deepseek_client import DEFAULT_DEEPSEEK_MODEL, attach_ai_review, request_deepseek_review
 from .renderers import render_json, render_markdown
 from .review_memory import append_review_events
+from .review_policy import (
+    PolicyConfigError,
+    apply_policy,
+    configured_fail_threshold,
+    discover_config_path,
+    load_policy_config,
+    risk_meets_threshold,
+)
 from .reviewer import review_diff
 from .sarif_renderer import render_sarif
 from .harness_renderer import render_harness_manifest
@@ -36,6 +44,17 @@ def run_cli(argv: list[str] | None = None) -> tuple[int, str]:
     parser.add_argument("--deepseek", action="store_true", help="Call DeepSeek API for an enhanced bilingual review.")
     parser.add_argument("--model", default=DEFAULT_DEEPSEEK_MODEL, help="DeepSeek model name.")
     parser.add_argument("--save-memory", help="Append review findings to a JSONL memory file.")
+    parser.add_argument("--config", help="Path to .ai-pr-review.yml policy config.")
+    parser.add_argument(
+        "--fail-on-risk",
+        choices=["low", "medium", "high", "critical"],
+        help="Return a non-zero exit code when the final risk level meets this threshold.",
+    )
+    parser.add_argument(
+        "--enforce-policy",
+        action="store_true",
+        help="Use fail_on from policy config as a CI risk gate.",
+    )
     try:
         args = parser.parse_args(argv)
     except CliArgumentError as error:
@@ -51,7 +70,13 @@ def run_cli(argv: list[str] | None = None) -> tuple[int, str]:
         return 1, f"Unable to read git diff: {error.stderr.strip() or error}"
 
     repo_path = Path(args.repo) if args.repo else None
-    report = review_diff(diff_text, repo_path=repo_path)
+    try:
+        config_path = Path(args.config) if args.config else discover_config_path(repo_path)
+        policy_config = load_policy_config(config_path)
+    except PolicyConfigError as error:
+        return 2, str(error)
+
+    report = apply_policy(review_diff(diff_text, repo_path=repo_path), policy_config)
     if args.deepseek:
         api_key = os.environ.get("DEEPSEEK_API_KEY")
         if not api_key:
@@ -66,12 +91,21 @@ def run_cli(argv: list[str] | None = None) -> tuple[int, str]:
         append_review_events(report, Path(args.save_memory))
 
     if args.format == "json":
-        return 0, render_json(report)
-    if args.format == "sarif":
-        return 0, render_sarif(report)
-    if args.format == "harness":
-        return 0, render_harness_manifest(report)
-    return 0, render_markdown(report)
+        output = render_json(report)
+    elif args.format == "sarif":
+        output = render_sarif(report)
+    elif args.format == "harness":
+        output = render_harness_manifest(report)
+    else:
+        output = render_markdown(report)
+
+    try:
+        threshold = configured_fail_threshold(policy_config, args.fail_on_risk, args.enforce_policy)
+        if risk_meets_threshold(report.risk_level, threshold):
+            return 3, output
+    except PolicyConfigError as error:
+        return 2, str(error)
+    return 0, output
 
 
 def load_diff_text(args: argparse.Namespace) -> str:

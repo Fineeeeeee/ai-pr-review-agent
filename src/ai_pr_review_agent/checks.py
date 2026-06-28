@@ -1,12 +1,13 @@
 ﻿from __future__ import annotations
 
+import ast
 import re
 
 from .models import AddedLine, Finding, ParsedDiff
 
 
 SECRET_PATTERN = re.compile(
-    r"\b(api[_-]?key|secret|token|password|passwd)\b\s*[:=]\s*['\"][^'\"]{6,}['\"]|sk-[A-Za-z0-9_-]{8,}",
+    r"\b(api[_-]?key|apiKey|secret|token|authToken|password|passwd)\b\s*[:=]\s*['\"][^'\"]{6,}['\"]|sk-[A-Za-z0-9_-]{8,}",
     re.IGNORECASE,
 )
 SQL_INTERPOLATION_PATTERN = re.compile(
@@ -17,8 +18,20 @@ SQL_KEYWORD_PATTERN = re.compile(r"\b(select|insert|update|delete)\b", re.IGNORE
 ASSIGNMENT_PATTERN = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)")
 EXECUTE_VARIABLE_PATTERN = re.compile(r"\bexecute\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\b")
 INTERPOLATED_STRING_PATTERN = re.compile(r"f['\"]|\.format\s*\(|%\s*[A-Za-z_(]", re.IGNORECASE)
+JS_ASSIGNMENT_PATTERN = re.compile(
+    r"\b(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+)"
+)
+JS_EXECUTE_VARIABLE_PATTERN = re.compile(
+    r"\b(?:query|execute)\s*\(\s*([A-Za-z_$][A-Za-z0-9_$]*)\b"
+)
+JS_TEMPLATE_INTERPOLATION_PATTERN = re.compile(r"`[^`]*\$\{[^`]+`", re.IGNORECASE)
+JS_STRING_CONCAT_PATTERN = re.compile(
+    r"['\"][^'\"]*\b(select|insert|update|delete)\b[^'\"]*['\"]\s*\+|\+\s*['\"][^'\"]*\b(select|insert|update|delete)\b",
+    re.IGNORECASE,
+)
 UNSAFE_EVAL_PATTERN = re.compile(r"\b(eval|exec)\s*\(")
 SHELL_TRUE_PATTERN = re.compile(r"\bshell\s*=\s*True\b|os\.system\s*\(")
+JS_SHELL_EXECUTION_PATTERN = re.compile(r"\b(?:child_process\.)?(?:exec|execSync)\s*\(")
 BROAD_EXCEPTION_PATTERN = re.compile(r"\bexcept\s+(Exception|BaseException)\s*:")
 
 
@@ -75,10 +88,10 @@ def check_line(line: AddedLine) -> list[Finding]:
             )
         )
 
-    if SQL_INTERPOLATION_PATTERN.search(content) and "execute" in content:
+    if has_sql_interpolation_execute(line):
         findings.append(make_sql_interpolation_finding(line))
 
-    if UNSAFE_EVAL_PATTERN.search(content):
+    if has_unsafe_dynamic_execution(line):
         findings.append(
             Finding(
                 rule_id="unsafe_eval",
@@ -94,7 +107,9 @@ def check_line(line: AddedLine) -> list[Finding]:
             )
         )
 
-    if SHELL_TRUE_PATTERN.search(content):
+    if SHELL_TRUE_PATTERN.search(content) or (
+        is_javascript_like_path(line.file_path) and JS_SHELL_EXECUTION_PATTERN.search(content)
+    ):
         findings.append(
             Finding(
                 rule_id="shell_execution",
@@ -130,6 +145,13 @@ def check_line(line: AddedLine) -> list[Finding]:
 
 
 def find_interpolated_sql_assignment(line: AddedLine) -> str | None:
+    if is_javascript_like_path(line.file_path):
+        return find_js_interpolated_sql_assignment(line.content)
+
+    ast_variable = find_interpolated_sql_assignment_ast(line.content)
+    if ast_variable:
+        return ast_variable
+
     match = ASSIGNMENT_PATTERN.search(line.content.strip())
     if not match:
         return None
@@ -140,8 +162,133 @@ def find_interpolated_sql_assignment(line: AddedLine) -> str | None:
 
 
 def find_executed_variable(line: AddedLine) -> str | None:
+    if is_javascript_like_path(line.file_path):
+        return find_js_executed_variable(line.content)
+
+    ast_variable = find_executed_variable_ast(line.content)
+    if ast_variable:
+        return ast_variable
+
     match = EXECUTE_VARIABLE_PATTERN.search(line.content.strip())
     return match.group(1) if match else None
+
+
+def has_sql_interpolation_execute(line: AddedLine) -> bool:
+    if is_javascript_like_path(line.file_path):
+        return has_js_sql_interpolation_execute(line.content)
+
+    if has_sql_interpolation_execute_ast(line.content):
+        return True
+    content = line.content.strip()
+    return bool(SQL_INTERPOLATION_PATTERN.search(content) and "execute" in content)
+
+
+def is_javascript_like_path(path: str) -> bool:
+    normalized = path.replace("\\", "/").lower()
+    return normalized.endswith((".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"))
+
+
+def has_unsafe_dynamic_execution(line: AddedLine) -> bool:
+    content = line.content.strip()
+    if is_javascript_like_path(line.file_path):
+        return bool(re.search(r"\beval\s*\(", content))
+    return bool(UNSAFE_EVAL_PATTERN.search(content))
+
+
+def find_js_interpolated_sql_assignment(content: str) -> str | None:
+    match = JS_ASSIGNMENT_PATTERN.search(content.strip())
+    if not match:
+        return None
+    value = match.group(2)
+    if js_expression_is_interpolated_sql(value):
+        return match.group(1)
+    return None
+
+
+def find_js_executed_variable(content: str) -> str | None:
+    match = JS_EXECUTE_VARIABLE_PATTERN.search(content.strip())
+    return match.group(1) if match else None
+
+
+def has_js_sql_interpolation_execute(content: str) -> bool:
+    stripped = content.strip()
+    if not re.search(r"\b(query|execute)\s*\(", stripped):
+        return False
+    return js_expression_is_interpolated_sql(stripped)
+
+
+def js_expression_is_interpolated_sql(content: str) -> bool:
+    if not SQL_KEYWORD_PATTERN.search(content):
+        return False
+    return bool(JS_TEMPLATE_INTERPOLATION_PATTERN.search(content) or JS_STRING_CONCAT_PATTERN.search(content))
+
+
+def find_interpolated_sql_assignment_ast(content: str) -> str | None:
+    tree = parse_python_line(content)
+    if tree is None:
+        return None
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if isinstance(target, ast.Name) and expression_is_interpolated_sql(node.value):
+            return target.id
+    return None
+
+
+def find_executed_variable_ast(content: str) -> str | None:
+    tree = parse_python_line(content)
+    if tree is None:
+        return None
+    for node in ast.walk(tree):
+        if is_execute_call(node) and node.args and isinstance(node.args[0], ast.Name):
+            return node.args[0].id
+    return None
+
+
+def has_sql_interpolation_execute_ast(content: str) -> bool:
+    tree = parse_python_line(content)
+    if tree is None:
+        return False
+    for node in ast.walk(tree):
+        if is_execute_call(node) and node.args and expression_is_interpolated_sql(node.args[0]):
+            return True
+    return False
+
+
+def parse_python_line(content: str) -> ast.AST | None:
+    try:
+        return ast.parse(content.strip())
+    except SyntaxError:
+        return None
+
+
+def is_execute_call(node: ast.AST) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    return isinstance(node.func, ast.Attribute) and node.func.attr == "execute"
+
+
+def expression_is_interpolated_sql(node: ast.AST) -> bool:
+    return expression_contains_sql_keyword(node) and expression_uses_interpolation(node)
+
+
+def expression_contains_sql_keyword(node: ast.AST) -> bool:
+    for child in ast.walk(node):
+        if isinstance(child, ast.Constant) and isinstance(child.value, str):
+            if SQL_KEYWORD_PATTERN.search(child.value):
+                return True
+    return False
+
+
+def expression_uses_interpolation(node: ast.AST) -> bool:
+    if isinstance(node, ast.JoinedStr):
+        return True
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod):
+        return True
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+        return node.func.attr == "format"
+    return False
 
 
 def make_sql_interpolation_finding(line: AddedLine) -> Finding:

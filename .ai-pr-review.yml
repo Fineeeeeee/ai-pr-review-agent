@@ -1,0 +1,11 @@
+# AI PR Review Agent policy.
+# fail_on controls CI gate behavior: low, medium, high, critical.
+fail_on: high
+
+# Rules listed here are removed from final reports and risk scoring.
+ignore_rules: []
+
+# Glob patterns matched against normalized file paths.
+ignore_paths:
+  - "docs/**"
+  - "*.md"

@@ -1,0 +1,6 @@
+diff --git a/app.js b/app.js
+--- a/app.js
++++ b/app.js
+@@ -1,2 +1,4 @@
++const query = `select * from users where id = ${userId}`;
++db.query(query);

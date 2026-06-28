@@ -1,0 +1,6 @@
+diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1,2 +1,4 @@
++query = "select * from users where id = %s" % user_id
++cursor.execute(query)
