@@ -76,7 +76,7 @@ def run_cli(argv: list[str] | None = None) -> tuple[int, str]:
     except PolicyConfigError as error:
         return 2, str(error)
 
-    report = apply_policy(review_diff(diff_text, repo_path=repo_path), policy_config)
+    report = apply_policy(review_diff(diff_text, repo_path=repo_path, policy_config=policy_config), policy_config)
     if args.deepseek:
         api_key = os.environ.get("DEEPSEEK_API_KEY")
         if not api_key:

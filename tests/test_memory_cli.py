@@ -61,6 +61,9 @@ class MemoryCliTests(unittest.TestCase):
         self.assertEqual(payload["by_status"]["accepted"], 1)
         self.assertEqual(payload["false_positive_by_rule"]["unsafe_eval"], 1)
         self.assertEqual(payload["by_rule"]["missing_tests"], 1)
+        self.assertEqual(payload["rule_health"]["unsafe_eval"]["reviewed_count"], 2)
+        self.assertEqual(payload["rule_health"]["unsafe_eval"]["false_positive_rate"], 50.0)
+        self.assertEqual(payload["rule_health"]["unsafe_eval"]["recommendation"], "watch")
 
 
 if __name__ == "__main__":

@@ -35,11 +35,12 @@ JS_SHELL_EXECUTION_PATTERN = re.compile(r"\b(?:child_process\.)?(?:exec|execSync
 BROAD_EXCEPTION_PATTERN = re.compile(r"\bexcept\s+(Exception|BaseException)\s*:")
 
 
-def run_static_checks(parsed: ParsedDiff) -> list[Finding]:
+def run_static_checks(parsed: ParsedDiff, custom_rules: list[dict[str, object]] | None = None) -> list[Finding]:
     findings: list[Finding] = []
     for file_change in parsed.files:
         interpolated_sql_variables: dict[str, AddedLine] = {}
         for line in file_change.added_lines:
+            findings.extend(check_custom_rules(line, custom_rules or []))
             findings.extend(check_line(line))
             assigned_variable = find_interpolated_sql_assignment(line)
             if assigned_variable:
@@ -65,6 +66,32 @@ def run_static_checks(parsed: ParsedDiff) -> list[Finding]:
             )
         )
 
+    return findings
+
+
+def check_custom_rules(line: AddedLine, custom_rules: list[dict[str, object]]) -> list[Finding]:
+    findings: list[Finding] = []
+    for rule in custom_rules:
+        pattern = str(rule.get("pattern", ""))
+        if not pattern or not re.search(re.escape(pattern), line.content):
+            continue
+        rule_id = str(rule.get("id", "team_custom_rule"))
+        severity = str(rule.get("severity", "medium"))
+        message = str(rule.get("message", f"Team policy matched custom rule {rule_id}."))
+        findings.append(
+            Finding(
+                rule_id=rule_id,
+                title=f"Team policy rule matched: {rule_id}",
+                title_zh=f"命中团队规则：{rule_id}",
+                severity=severity,
+                file_path=line.file_path,
+                line_number=line.new_line_number,
+                message=message,
+                message_zh=message,
+                recommendation="Check the team rule library and replace this pattern with the approved implementation.",
+                recommendation_zh="检查团队规则库要求，并替换为团队认可的实现方式。",
+            )
+        )
     return findings
 
 

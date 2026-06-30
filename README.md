@@ -323,3 +323,27 @@ ai-pr-review-agent/
 - 扩展 Java 等更多语言支持。
 - 基于评审记忆中的反馈状态优化规则优先级。
 - 支持更完整的多 Agent 审查流程编排。
+
+## Repo docs
+
+项目理解文档在 `repo-docs/`。新读者从 `repo-docs/README.md` 开始；后续回答架构、上手或“这个子系统怎么工作”问题前，应先检查相关 guide 页面和当前源码。代码、配置、测试或行为变化后，运行 Understanding Sync check，并把有意义的 guide 更新记录到 `repo-docs/change-log.md`。
+
+## 企业团队 PR 风险门禁方向
+
+当前项目更靠近“企业团队的本地优先 PR 风险门禁”，不是全能代码审查平台。核心路径是：团队把明确禁止的模式写进 `.ai-pr-review.yml`，PR 触发后工具只审查新增代码行，输出 Markdown、JSON、SARIF 和 PR 评论，并通过 `fail_on` 阈值阻断高风险变更。
+
+团队规则示例：
+
+```yaml
+custom_rules:
+  - id: team_no_pickle_loads
+    pattern: "pickle.loads"
+    severity: high
+    message: "Team policy forbids unsafe pickle deserialization in PR changes."
+```
+
+`custom_rules` 会在内置规则之前检查新增行，适合承载团队禁用 API、危险 SDK 调用、内部安全约定等明确规则。复杂语义判断仍应进入内置规则和评估集，避免把配置文件变成不可维护的小型规则语言。
+
+Review Memory 支持把审查发现保存成 JSONL，并标注 `accepted`、`false_positive`、`false_negative`。摘要输出里的 `rule_health` 会按规则给出已复核数量、误报率、漏报数量和建议动作，用来辅助团队调优规则；当前版本只提示，不自动关闭规则。
+
+私有化部署说明见 [docs/private-deployment.md](docs/private-deployment.md)。项目提供 `Dockerfile`，默认离线运行，不需要 API Key；DeepSeek 只作为显式开启的增强层。

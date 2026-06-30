@@ -14,9 +14,14 @@ from .structured_output import build_structured_output
 RISK_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 
-def review_diff(diff_text: str, repo_path: Path | None = None) -> ReviewReport:
+def review_diff(
+    diff_text: str,
+    repo_path: Path | None = None,
+    policy_config: dict[str, object] | None = None,
+) -> ReviewReport:
     parsed = parse_unified_diff(diff_text)
-    findings = run_static_checks(parsed)
+    custom_rules = policy_config.get("custom_rules", []) if policy_config else []
+    findings = run_static_checks(parsed, custom_rules=custom_rules if isinstance(custom_rules, list) else [])
     summary = ReviewSummary(
         changed_files=[file.path for file in parsed.files],
         total_added_lines=sum(len(file.added_lines) for file in parsed.files),

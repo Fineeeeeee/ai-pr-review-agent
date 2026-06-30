@@ -62,4 +62,39 @@ def summarize_review_events(events: list[dict[str, object]]) -> dict[str, object
         "accepted_by_rule": dict(sorted(accepted_by_rule.items())),
         "false_positive_by_rule": dict(sorted(false_positive_by_rule.items())),
         "false_negative_by_rule": dict(sorted(false_negative_by_rule.items())),
+        "rule_health": build_rule_health(events),
     }
+
+
+def build_rule_health(events: list[dict[str, object]]) -> dict[str, dict[str, object]]:
+    grouped: dict[str, Counter[str]] = {}
+    for event in events:
+        rule_id = str(event.get("rule_id", "unknown"))
+        status = str(event.get("feedback_status", "unknown"))
+        grouped.setdefault(rule_id, Counter())[status] += 1
+
+    health: dict[str, dict[str, object]] = {}
+    for rule_id, statuses in sorted(grouped.items()):
+        reviewed_count = statuses["accepted"] + statuses["false_positive"] + statuses["false_negative"]
+        false_positive_count = statuses["false_positive"]
+        false_negative_count = statuses["false_negative"]
+        false_positive_rate = round((false_positive_count / reviewed_count) * 100, 2) if reviewed_count else 0.0
+        health[rule_id] = {
+            "reviewed_count": reviewed_count,
+            "accepted_count": statuses["accepted"],
+            "false_positive_count": false_positive_count,
+            "false_negative_count": false_negative_count,
+            "false_positive_rate": false_positive_rate,
+            "recommendation": recommend_rule_action(reviewed_count, false_positive_rate, false_negative_count),
+        }
+    return health
+
+
+def recommend_rule_action(reviewed_count: int, false_positive_rate: float, false_negative_count: int) -> str:
+    if reviewed_count == 0:
+        return "collect_more_feedback"
+    if false_negative_count > 0:
+        return "expand_coverage"
+    if false_positive_rate >= 50:
+        return "watch"
+    return "keep"

@@ -39,15 +39,23 @@ def load_policy_config(path: Path | None) -> dict[str, object]:
 def parse_simple_yaml(text: str) -> dict[str, object]:
     config: dict[str, object] = {}
     current_list_key: str | None = None
+    current_list_item: dict[str, object] | None = None
     for raw_line in text.splitlines():
         line = raw_line.split("#", 1)[0].rstrip()
         if not line.strip():
             continue
+        if line.startswith("    ") and current_list_item is not None:
+            if ":" not in line:
+                raise PolicyConfigError(f"Invalid config line: {raw_line}")
+            key, raw_value = line.split(":", 1)
+            current_list_item[key.strip()] = normalize_scalar(raw_value.strip())
+            continue
         if line.startswith("  - ") and current_list_key:
             config.setdefault(current_list_key, [])
-            value = normalize_scalar(line[4:].strip())
+            value = parse_list_item(line[4:].strip())
             if isinstance(config[current_list_key], list):
                 config[current_list_key].append(value)
+            current_list_item = value if isinstance(value, dict) else None
             continue
         if ":" not in line:
             raise PolicyConfigError(f"Invalid config line: {raw_line}")
@@ -59,10 +67,19 @@ def parse_simple_yaml(text: str) -> dict[str, object]:
         if value == "":
             config[key] = []
             current_list_key = key
+            current_list_item = None
         else:
             config[key] = normalize_scalar(value)
             current_list_key = None
+            current_list_item = None
     return config
+
+
+def parse_list_item(value: str) -> object:
+    if ":" not in value:
+        return normalize_scalar(value)
+    key, raw_value = value.split(":", 1)
+    return {key.strip(): normalize_scalar(raw_value.strip())}
 
 
 def normalize_scalar(value: str) -> object:
