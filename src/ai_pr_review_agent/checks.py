@@ -72,8 +72,7 @@ def run_static_checks(parsed: ParsedDiff, custom_rules: list[dict[str, object]] 
 def check_custom_rules(line: AddedLine, custom_rules: list[dict[str, object]]) -> list[Finding]:
     findings: list[Finding] = []
     for rule in custom_rules:
-        pattern = str(rule.get("pattern", ""))
-        if not pattern or not re.search(re.escape(pattern), line.content):
+        if not custom_rule_matches(line, rule):
             continue
         rule_id = str(rule.get("id", "team_custom_rule"))
         severity = str(rule.get("severity", "medium"))
@@ -93,6 +92,40 @@ def check_custom_rules(line: AddedLine, custom_rules: list[dict[str, object]]) -
             )
         )
     return findings
+
+
+def custom_rule_matches(line: AddedLine, rule: dict[str, object]) -> bool:
+    pattern = str(rule.get("pattern", ""))
+    if not pattern:
+        return False
+    rule_type = str(rule.get("type", "literal"))
+    if rule_type == "forbidden_call":
+        return has_forbidden_call(line, pattern)
+    if rule_type == "literal":
+        return bool(re.search(re.escape(pattern), line.content))
+    return False
+
+
+def has_forbidden_call(line: AddedLine, dotted_name: str) -> bool:
+    if is_javascript_like_path(line.file_path):
+        return bool(re.search(rf"\b{re.escape(dotted_name)}\s*\(", line.content))
+
+    tree = parse_python_line(line.content)
+    if tree is None:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and python_call_name(node.func) == dotted_name:
+            return True
+    return False
+
+
+def python_call_name(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parent = python_call_name(node.value)
+        return f"{parent}.{node.attr}" if parent else node.attr
+    return None
 
 
 def check_line(line: AddedLine) -> list[Finding]:

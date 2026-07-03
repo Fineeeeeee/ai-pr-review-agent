@@ -10,10 +10,10 @@ ignore_paths:
   - "docs/**"
   - "*.md"
 
-# Team-owned rules for private risk gates. Each pattern is matched literally
-# against added diff lines before built-in rules run.
+# Team-owned rules for private risk gates. Rules run before built-in checks.
 custom_rules:
   - id: team_no_pickle_loads
+    type: forbidden_call
     pattern: "pickle.loads"
     severity: high
     message: "Team policy forbids unsafe pickle deserialization in PR changes."

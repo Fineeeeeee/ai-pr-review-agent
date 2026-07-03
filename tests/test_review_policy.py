@@ -27,6 +27,7 @@ ignore_paths: ["docs/**", "*.md"]
             """
 custom_rules:
   - id: team_no_pickle_loads
+    type: literal
     pattern: "pickle.loads"
     severity: high
     message: "Team policy forbids unsafe pickle deserialization."
@@ -38,6 +39,7 @@ custom_rules:
             [
                 {
                     "id": "team_no_pickle_loads",
+                    "type": "literal",
                     "pattern": "pickle.loads",
                     "severity": "high",
                     "message": "Team policy forbids unsafe pickle deserialization.",
@@ -119,6 +121,7 @@ custom_rules:
                 """
 custom_rules:
   - id: team_no_pickle_loads
+    type: literal
     pattern: "pickle.loads"
     severity: high
     message: "Team policy forbids unsafe pickle deserialization."
@@ -142,6 +145,49 @@ custom_rules:
         self.assertEqual(payload["risk_level"], "high")
         self.assertEqual(payload["findings"][0]["rule_id"], "team_no_pickle_loads")
         self.assertIn("pickle deserialization", payload["findings"][0]["message"])
+
+    def test_cli_applies_forbidden_call_custom_rule_without_matching_strings(self):
+        diff = """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1,4 @@
++import pickle
++message = "pickle.loads is mentioned in docs"
++# pickle.loads(payload)
++value = pickle.loads(payload)
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / ".ai-pr-review.yml"
+            config_path.write_text(
+                """
+ignore_rules:
+  - missing_tests
+custom_rules:
+  - id: team_no_pickle_loads
+    type: forbidden_call
+    pattern: "pickle.loads"
+    severity: high
+    message: "Team policy forbids unsafe pickle deserialization."
+""",
+                encoding="utf-8",
+            )
+
+            exit_code, output = run_cli(
+                [
+                    "--diff-text",
+                    diff,
+                    "--config",
+                    str(config_path),
+                    "--format",
+                    "json",
+                ]
+            )
+
+        payload = json.loads(output)
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["risk_level"], "high")
+        self.assertEqual([finding["rule_id"] for finding in payload["findings"]], ["team_no_pickle_loads"])
+        self.assertEqual(payload["findings"][0]["line_number"], 4)
 
 
 if __name__ == "__main__":

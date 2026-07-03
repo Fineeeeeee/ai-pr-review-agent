@@ -22,7 +22,7 @@
 | `fail_on` | `--enforce-policy` 时触发非零退出码的最低风险等级 | `high` |
 | `ignore_rules` | 从最终报告和风险评分里移除的规则 ID | `["missing_tests"]` |
 | `ignore_paths` | 从最终报告和风险评分里移除的路径 glob | `["docs/**", "*.md"]` |
-| `custom_rules` | 团队自定义规则列表，在内置规则之前按新增行做字面匹配 | `team_no_pickle_loads` |
+| `custom_rules` | 团队自定义规则列表，在内置规则之前按规则类型检查新增行 | `team_no_pickle_loads` |
 
 ## 团队规则库
 
@@ -31,12 +31,20 @@
 ```yaml
 custom_rules:
   - id: team_no_pickle_loads
+    type: forbidden_call
     pattern: "pickle.loads"
     severity: high
     message: "Team policy forbids unsafe pickle deserialization in PR changes."
 ```
 
-命中后会生成对应 `rule_id` 的 finding，参与风险评分、JSON、SARIF 和 PR 评论。当前版本按字面匹配，不做复杂规则语言；复杂语义规则应进入内置规则引擎和评估集。
+命中后会生成对应 `rule_id` 的 finding，参与风险评分、JSON、SARIF 和 PR 评论。当前版本支持两类规则：
+
+| 类型 | 用途 |
+| --- | --- |
+| `literal` | 按新增行做字面匹配，适合内部 SDK 名称、固定危险片段 |
+| `forbidden_call` | 识别真实函数调用，适合团队禁用 API；Python 使用 AST，JS/TS 使用调用形态匹配 |
+
+复杂语义规则应进入内置规则引擎和评估集，不把配置文件扩成小型规则语言。
 
 ## 风险等级顺序
 

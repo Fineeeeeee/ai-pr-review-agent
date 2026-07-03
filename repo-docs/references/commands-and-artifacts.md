@@ -49,3 +49,5 @@
 | 构建 Docker 镜像 | `docker build -t ai-pr-review-agent .` |
 | 容器内审查示例 diff | `docker run --rm ai-pr-review-agent --diff-file examples/risky.diff --format json` |
 | 容器内审查挂载 diff | `docker run --rm -v ${PWD}:/workspace ai-pr-review-agent --diff-file /workspace/pr.diff --config /workspace/.ai-pr-review.yml --enforce-policy` |
+
+Docker 镜像是离线 CLI 审查环境，不是常驻服务。镜像使用非 root 用户运行，`.dockerignore` 会排除 `.env`、本地记忆数据、学习资料和生成产物。门禁场景用退出码区分结果：`0` 表示未触发门禁，`2` 表示参数或配置错误，`3` 表示风险达到门禁阈值。

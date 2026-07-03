@@ -337,12 +337,13 @@ ai-pr-review-agent/
 ```yaml
 custom_rules:
   - id: team_no_pickle_loads
+    type: forbidden_call
     pattern: "pickle.loads"
     severity: high
     message: "Team policy forbids unsafe pickle deserialization in PR changes."
 ```
 
-`custom_rules` 会在内置规则之前检查新增行，适合承载团队禁用 API、危险 SDK 调用、内部安全约定等明确规则。复杂语义判断仍应进入内置规则和评估集，避免把配置文件变成不可维护的小型规则语言。
+`custom_rules` 会在内置规则之前检查新增行，适合承载团队禁用 API、危险 SDK 调用、内部安全约定等明确规则。当前支持 `literal` 和 `forbidden_call` 两类：前者做字面匹配，后者识别真实函数调用，避免字符串和注释误命中。复杂语义判断仍应进入内置规则和评估集，避免把配置文件变成不可维护的小型规则语言。
 
 Review Memory 支持把审查发现保存成 JSONL，并标注 `accepted`、`false_positive`、`false_negative`。摘要输出里的 `rule_health` 会按规则给出已复核数量、误报率、漏报数量和建议动作，用来辅助团队调优规则；当前版本只提示，不自动关闭规则。
 
